@@ -279,6 +279,202 @@ function th(){const d=document.documentElement,dark=d.dataset.theme?d.dataset.th
 if(S.theme)document.documentElement.dataset.theme=S.theme;
 const tick=()=>{const e=q("#tm");if(e)e.textContent=(run?"⏸ ":"⏱ ")+fmt(S.t);const t=q("#qt");if(t&&Q&&Q.k<Q.list.length)t.textContent="⏱ "+fmt(Math.floor((Date.now()-Q.t0)/1000))};
 function tmT(){run=!run;tick()}
+/* ============================================================
+   ADICIONAL · ABA "DISCIPLINAS" NA NAVBAR
+   Cola no <script> principal do site (ou num <script> à parte).
+   Não depende de nada externo — usa só a API do DOM.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  /* Troque para '_blank' se quiser abrir cada disciplina em nova aba. */
+  const TARGET = '_self';
+
+  const DISCIPLINAS = [
+    { nome: 'Física',     icone: '⚛️', url: 'https://rafaelliwu.github.io/FisicaEnem/#/'     },
+    { nome: 'Biologia',   icone: '🧬', url: 'https://rafaelliwu.github.io/BiologiaEnem/#/'   },
+    { nome: 'Filosofia',  icone: '🤔', url: 'https://rafaelliwu.github.io/FilosofiaEnem/#/'  },
+    { nome: 'Matemática', icone: '📐', url: 'https://rafaelliwu.github.io/MatematicaEnem/#/' },
+    { nome: 'Português',  icone: '📚', url: 'https://rafaelliwu.github.io/PortuguesEnem/#/'   },
+    { nome: 'Sociologia', icone: '👥', url: 'https://rafaelliwu.github.io/SociologiaEnem/#/' },
+    { nome: 'História',   icone: '🏛️', url: 'https://rafaelliwu.github.io/HistoriaEnem/#/'   },
+    { nome: 'Geografia',  icone: '🌎', url: 'https://rafaelliwu.github.io/GeografiaEnem/#/'   },
+    { nome: 'Química',    icone: '🧪', url: 'https://rafaelliwu.github.io/QuimicaEnem/#/'    }
+  ];
+
+  function iniciar() {
+    const nav = document.querySelector('nav');
+    if (!nav) return;
+    if (nav.querySelector('[data-disc-btn]')) return; // evita duplicar
+
+    /* ---------- CSS injetado ---------- */
+    const css = document.createElement('style');
+    css.textContent = `
+      nav a[data-disc-btn] { position: relative; cursor: pointer; }
+      nav a[data-disc-btn] span { font-size: 9px; letter-spacing: -0.02em; }
+      nav a[data-disc-btn].open { background: var(--hi); color: var(--ht); transform: translateY(-3px); }
+
+      .disc-pop {
+        position: fixed; z-index: 9999;
+        display: none; flex-wrap: wrap; gap: 6px;
+        background: var(--cd, #fff);
+        color: var(--tx, #111);
+        border: 1.5px solid var(--ln, #ddd);
+        border-radius: 16px;
+        padding: 10px;
+        max-width: min(94vw, 460px);
+        box-shadow: 0 12px 34px rgba(0,0,0,.22), 0 3px 0 var(--ln, #ddd);
+        animation: discUp .18s cubic-bezier(.2,.8,.2,1) both;
+      }
+      .disc-pop.on { display: flex; }
+      @keyframes discUp { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
+
+      .disc-pop .ttl {
+        flex-basis: 100%; text-align: center;
+        font-size: 11px; font-weight: 700; letter-spacing: .5px;
+        text-transform: uppercase; color: var(--mu, #666);
+        padding: 2px 0 6px;
+      }
+
+      .disc-pop a {
+        display: flex; align-items: center; gap: 8px;
+        padding: 9px 13px; border-radius: 10px;
+        background: var(--bg, #f5f5f5);
+        color: var(--tx, #111);
+        font-size: 13.5px; font-weight: 600; text-decoration: none;
+        border: 1.5px solid var(--ln, #ddd);
+        transition: transform .15s, border-color .15s, background .15s;
+        white-space: nowrap;
+      }
+      .disc-pop a:hover,
+      .disc-pop a:focus-visible {
+        transform: translateY(-2px);
+        border-color: var(--ac, #0D9488);
+        background: var(--hi, #e6fffb);
+        outline: none;
+      }
+      .disc-pop a .ic { font-size: 16px; line-height: 1; }
+
+      @media (max-width: 520px) {
+        .disc-pop { max-width: 96vw; padding: 8px; gap: 4px; }
+        .disc-pop a { font-size: 12px; padding: 7px 10px; gap: 6px; }
+        .disc-pop a .ic { font-size: 14px; }
+      }
+      @media (max-width: 380px) {
+        nav a[data-disc-btn] span { font-size: 8px; }
+        .disc-pop a { font-size: 11.5px; padding: 6px 9px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .disc-pop, .disc-pop a { animation: none !important; transition: none !important; }
+      }
+    `;
+    document.head.appendChild(css);
+
+    /* ---------- botão na navbar ---------- */
+    const btn = document.createElement('a');
+    btn.href = 'javascript:void 0';
+    btn.setAttribute('data-disc-btn', '');
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Trocar de disciplina');
+    btn.innerHTML = '<i>📚</i><span>Disciplinas</span>';
+    nav.appendChild(btn);
+
+    /* ---------- popover ---------- */
+    const pop = document.createElement('div');
+    pop.className = 'disc-pop';
+    pop.setAttribute('role', 'menu');
+    const rel = TARGET === '_blank' ? ' rel="noopener noreferrer"' : '';
+    pop.innerHTML =
+      '<div class="ttl">Trocar disciplina</div>' +
+      DISCIPLINAS.map(d =>
+        `<a href="${d.url}" target="${TARGET}"${rel} role="menuitem">` +
+          `<span class="ic">${d.icone}</span>${d.nome}` +
+        `</a>`
+      ).join('');
+    document.body.appendChild(pop);
+
+    /* ---------- posicionamento acima do botão ---------- */
+    function posicionar() {
+      const r = btn.getBoundingClientRect();
+      pop.style.visibility = 'hidden';
+      pop.classList.add('on');
+      const pw = pop.offsetWidth;
+      const ph = pop.offsetHeight;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // centro alinhado ao botão, preso às bordas
+      let left = r.left + r.width / 2 - pw / 2;
+      if (left < 8) left = 8;
+      if (left + pw > vw - 8) left = vw - pw - 8;
+
+      // aparece acima do botão (o nav é fixo no rodapé)
+      let top = r.top - ph - 12;
+      if (top < 8) top = 8;               // se não couber acima, desce um pouco
+      if (top + ph > vh - 8) top = vh - ph - 8;
+
+      pop.style.left = left + 'px';
+      pop.style.top = top + 'px';
+      pop.style.visibility = 'visible';
+    }
+
+    function abrir() {
+      posicionar();
+      btn.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    function fechar() {
+      pop.classList.remove('on');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function alternar(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      if (pop.classList.contains('on')) fechar();
+      else abrir();
+    }
+
+    /* ---------- eventos ---------- */
+    btn.addEventListener('click', alternar);
+    btn.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') alternar(e);
+    });
+
+    // fecha ao clicar fora
+    document.addEventListener('click', e => {
+      if (!pop.classList.contains('on')) return;
+      if (pop.contains(e.target) || btn.contains(e.target)) return;
+      fechar();
+    });
+
+    // fecha com Esc
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && pop.classList.contains('on')) fechar();
+    });
+
+    // fecha ao clicar num link (mesmo com _self, garante o fechamento visual)
+    pop.addEventListener('click', e => {
+      if (e.target.closest('a')) fechar();
+    });
+
+    // reposiciona ao redimensionar / rolar (mobile com teclado aberto etc.)
+    window.addEventListener('resize', () => {
+      if (pop.classList.contains('on')) posicionar();
+    });
+    window.addEventListener('scroll', () => {
+      if (pop.classList.contains('on')) posicionar();
+    }, true);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciar);
+  } else {
+    iniciar();
+  }
+})();
 setInterval(()=>{if(run){S.t++;if(S.t%5==0)sv()}tick()},1000);
 addEventListener("keydown",e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)){if(e.key=="Escape")e.target.blur();return}if(e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
 if(k=="/"){const s=q("#sq");if(s){e.preventDefault();s.focus()}return}
